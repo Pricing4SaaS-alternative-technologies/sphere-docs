@@ -1,0 +1,322 @@
+---
+title: "Vue"
+custom_edit_url: null
+---
+
+# 🚀 SPACE Client SDK for Vue
+
+The **SPACE Vue SDK** provides fully-typed Vue/TypeScript **components, hooks, and utilities** to seamlessly integrate your web apps with SPACE.  
+
+With this SDK you can:
+
+- ⚡ **Connect** a Vue application to a **SPACE** instance (HTTP + WebSocket).
+- 🔑 Generate and manage **Pricing Tokens** directly in the client.
+- 🧩 **Activate/deactivate UI components** declaratively with the `<Feature>` component.
+- 🔔 **Subscribe to SPACE pricing events** to keep your UI in sync.  
+
+:::warning important 
+This SDK is intended for research and experimentation. For production usage, see **[License & Disclaimer](#-license--disclaimer)**.
+:::
+
+---
+
+## ⚠️ Important Note
+
+- **Feature evaluation is always based on the Pricing Token.**  
+  `space-Vue-client` does not call SPACE directly to check features; instead, it uses the evaluation results stored in the Pricing-Token loaded in `TokenService`.
+  (See [SPACE communication protocol](../../introduction.mdx) for more details on how pricing tokens work.)
+
+---
+
+## 📦 Installation
+
+Install with your package manager of choice:
+
+```bash
+npm install @npm_team/space-vue-client
+# or
+yarn add space-vue-client
+# or
+pnpm add space-vue-client
+```
+
+**Peer dependencies:**
+
+- `Vue >= 18`
+- `Resto dependencias`
+
+---
+
+## ⚡ Quick Start
+
+The minimal setup to connect to SPACE, load a user’s Pricing Token, and render UI conditionally with `<Feature>`.
+
+### 1. Wrap your app with `SpaceProvider`
+
+```tsx
+//REVISAR CODIGO
+import Vue from 'Vue';
+import { createRoot } from 'Vue-dom/client';
+import { SpaceProvider } from 'space-Vue-client';
+import App from './App';
+
+const config = {
+  url: 'http://localhost:5403', // Your SPACE instance URL
+  apiKey: 'YOUR_API_KEY',       // API key issued by SPACE
+  allowConnectionWithSpace: true,
+};
+
+createRoot(document.getElementById('root')!)
+  .render(
+    <SpaceProvider config={config}>
+      <App />
+    </SpaceProvider>
+  );
+```
+
+:::warning  
+Setting `allowConnectionWithSpace: false` disables all connections to SPACE.  
+This means you can still evaluate features from a token, but **event listeners (e.g., pricing_created, pricing_archived, etc.) as well as methods like `setUserId` and `generateUserPricingToken` will not work.**  
+:::
+
+### 2. Identify the user and load a Pricing Token
+
+```tsx
+import { useEffect } from 'Vue';
+import { useSpaceClient } from 'space-Vue-client';
+
+export function App() {
+  const spaceClient = useSpaceClient();
+
+  useEffect(() => {
+    spaceClient.setUserId('user-123')
+      .then(() => console.log("User's pricing token set"))
+      .catch(console.error);
+
+    // Listen for SPACE sync events
+    const onSync = () => console.log('Connected & synchronized with SPACE');
+    spaceClient.on('synchronized', onSync);
+
+    return () => spaceClient.off('synchronized', onSync);
+  }, [spaceClient]);
+
+  return <YourComponent />;
+}
+```
+
+### 3. Gate UI with `<Feature>`
+
+```tsx
+import { Feature, On, Default, Loading, ErrorFallback } from 'space-Vue-client';
+
+export function OnlineVisitsButton() {
+  return (
+    <Feature id="petclinic-visits">
+      <On>
+        {/* Rendered when feature is enabled */}
+        <button>Start online visit</button>
+      </On>
+      <Default>
+        {/* Rendered when feature is disabled */}
+        <button disabled>Upgrade to enable online visits</button>
+      </Default>
+      <Loading>
+        {/* Rendered while evaluating */}
+        <span>Checking your plan…</span>
+      </Loading>
+      <ErrorFallback>
+        {/* Rendered on error */}
+        <span>Could not verify your access permission to online visits.</span>
+      </ErrorFallback>
+    </Feature>
+  );
+}
+```
+
+---
+
+### 🔄 Alternative: Token-only mode (no live connection)
+
+Set `allowConnectionWithSpace: false` to disable the WebSocket client.  
+You can then inject a Pricing Token from your backend:
+
+```tsx
+import { useEffect } from 'Vue';
+import { usePricingToken } from 'space-Vue-client';
+
+export function InjectTokenFromServer() {
+  const tokenService = usePricingToken();
+
+  useEffect(() => {
+    fetch('/api/my-pricing-token')
+      .then(res => res.text()) // token as string
+      .then(token => tokenService.updatePricingToken(token))
+      .catch(console.error);
+  }, [tokenService]);
+
+  return <YourComponent />;
+}
+```
+
+---
+
+## 📚 API Reference
+
+### Providers
+
+- **`SpaceProvider({ config, children })`**  
+  Initializes the client and provides context.  
+
+  - **Props:**  
+    - `config: SpaceConfiguration`  
+      - `url: string` — SPACE instance URL  
+      - `apiKey: string` — Authentication key emitted by SPACE
+      - `allowConnectionWithSpace: boolean` — If `false`, event listeners take no effect (default: `true`)
+    - `children: Vue.VueNode`  
+
+---
+
+### Hooks
+
+- **`useSpaceClient(): SpaceClient`**  
+  Returns the connected `SpaceClient` instance. Throws if not available.
+
+- **`useTokenService(): TokenService`**  
+  Returns the `TokenService` instance that is managing the lifecycle of pricing tokens. Available even if live connection is disabled.
+
+- **`usePricingTokenPayload(): Record<string, any> | null`**  
+  Returns the parsed payload of the current pricing token, or `null` if none is set or invalid. Could be useful to maintain the UI in sync with pricing token.
+
+---
+
+### UI Components
+
+- **`<Feature id="feature-id">…</Feature>`**  
+  Declarative feature gating.  
+
+  - **Subcomponents:**  
+    - `<On>` — Rendered when feature evaluates to `true`.  
+    - `<Default>` — Rendered when feature evaluates to `false`.  
+    - `<Loading>` — Rendered while evaluating.  
+    - `<ErrorFallback>` — Rendered on errors (invalid id, expired token, etc).  
+
+:::warning
+The `feature-id` is a string in the format `saasName-featureName`, where saasname is always lowercase.
+For example, to reference the **pets feature from PetClinic**, the resulting feature-id would be: `petclinic-pets`.
+:::
+
+---
+
+### Client API
+
+`SpaceClient` is instantiated by `SpaceProvider`.  
+
+**Attributes:**
+
+- **httpUrl**: `string` — Configured base URL of the SPACE instance.
+  👉 Example: `http://localhost:5403/api/v1`
+- **wsUrl**: `string` — Configured WebSocket URL of the SPACE instance.
+  👉 Example: `ws://localhost:5403/api/v1/events`
+- **apiKey**: `string` — Configured API key for authentication.
+  👉 Example: `6a0f4f1093c1e95616efd61b69b15f90f1b25953a4201961995b8a89035aac72`
+- **token**: `TokenService` — Instance of the Token Service being employed. could be useful when working in `allowConnectionWithSpace: true` mode to not need the `useTokenService` hook.
+
+
+**Methods:**
+
+- `on(event, callback)` — Listen to SPACE events.  
+- `off(event?, callback?)` — Remove listeners. **If no args, removes all listeners**.
+- `setUserId(userId)` — Set user for evaluations, **generates a pricing token, and stores it**.
+- `generateUserPricingToken()` — Generate and **return** a fresh Pricing Token for the user configured with `setUserId`. It **does not store** the token.
+
+**✅ Supported Events**
+
+- **`synchronized`** — Client is connected and synced with SPACE.  
+- **`pricing_created`** — A new pricing was added.  
+- **`pricing_activated`** — A pricing moved from archived → active.  
+- **`pricing_archived`** — A pricing moved from active → archived.  
+- **`service_disabled`** — A service was disabled.  
+- **`error`** — Connection or processing error.  
+
+All events (except `synchronized` and `error`) include the following object:  
+
+```typescript
+{
+  serviceName: string;       // REQUIRED: The name of the service that triggered the event
+  pricingVersion?: string;   // OPTIONAL: The version of the pricing involved
+}
+```
+
+---
+
+### Token Service
+
+**Methods:**
+
+- `update(token: string): void` — Validates & stores a pricing token.  
+- `getPayload(): Record<string, any> | null` — Return parsed token payload.  
+- `getKey(key: string): any | null` — Search the key within the token payload and returns its value.  
+- `evaluateFeature(featureId: string): boolean | null` — Returns `true | false | null`.  
+- `subscribe(listener: () => void): () => void` — Subscribe to token changes. *Returns an unsubscribe function*.
+
+Token expectations:  
+- `exp: number` — UNIX expiration.  
+- `features: Record<string, { eval: boolean; limit?: number | null; used?: number | null }>`  
+- `pricingContext: Record<string, {features: Record<string, string|boolean>, usageLimits: Record<string, number|boolean>}> | null` — Optional object containing the pricingContext considered for evaluation. **It represents the configuration** the user has access to.
+- `subscriptionContext: Record<string, number> | null` — Optional object containing the subscriptionContext considered for evaluation.
+
+---
+
+## 🛡️ Security Considerations
+
+- **Do not expose SPACE API keys in production.**  
+  Instead, issue Pricing Tokens from your backend and deliver them to the client.  
+- Tokens are validated client-side with the `exp` claim. Rotate or shorten TTLs as needed.  
+
+---
+
+## ⚙️ Development & Tooling
+
+The project uses the following main tools and technologies:
+
+<div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center', marginTop: '1rem' }}>
+
+![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?logo=typescript&logoColor=white&style=for-the-badge)
+![Rollup](https://img.shields.io/badge/-Rollup-EC4A3F?logo=rollup.js&logoColor=white&style=for-the-badge)
+![Vitest](https://img.shields.io/badge/-Vitest-6E9F18?logo=vitest&logoColor=white&style=for-the-badge)
+![Testing Library](https://img.shields.io/badge/-Testing%20Library-E33332?logo=testinglibrary&logoColor=white&style=for-the-badge)
+![Axios](https://img.shields.io/badge/-Axios-5A29E4?logo=axios&logoColor=white&style=for-the-badge)
+![Socket.io](https://img.shields.io/badge/-Socket.io-010101?logo=socketdotio&logoColor=white&style=for-the-badge)
+
+</div>
+
+---
+
+## 📄 License & Disclaimer
+
+This project is licensed under the **MIT License**. See [LICENSE](https://github.com/Alex-GF/space-Vue-client/blob/main/LICENSE).  
+
+:::warning
+This SDK is part of **ongoing research** in pricing-driven devops.
+It is still in an early stage and not intended for production use.
+:::
+
+---
+
+## ❓ FAQ
+
+**Q:** Do I need SPACE running to use this?  
+**A:** Yes, for live connectivity. In token-only mode, you just need a Pricing Token from your backend.  
+
+**Q:** Why does `useSpaceClient` throw?  
+**A:** Likely because you’re outside `SpaceProvider`, or `allowConnectionWithSpace` is `false`.  
+
+**Q:** What’s the format for feature IDs?  
+**A:** A **feature id** must:  
+
+- Always include a dash (`-`).  
+- Match exactly the keys present in the Pricing Token payload.  
+
+The format is built internally as: `saasName-featureName`, where saasname is always lowercase.
+
+For example, if you want to instantiate the feature `pets` from the SaaS **PetClinic**, the feature id would be: `petclinic-pets`.
