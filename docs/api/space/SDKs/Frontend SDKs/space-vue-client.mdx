@@ -5,17 +5,17 @@ custom_edit_url: null
 
 # 🚀 SPACE Client SDK for Vue
 
-The **SPACE Vue SDK** provides fully-typed Vue/TypeScript **components, hooks, and utilities** to seamlessly integrate your web apps with SPACE.  
+The **SPACE Vue SDK** provides fully-typed Vue/TypeScript **components, composables, and utils** to seamlessly integrate your web apps with SPACE.  
 
 With this SDK you can:
 
-- ⚡ **Connect** a Vue application to a **SPACE** instance (HTTP + WebSocket).
+- ⚡ **Connect** a Vue application to a **SPACE** instance (Not completely implemented at this stage).
 - 🔑 Generate and manage **Pricing Tokens** directly in the client.
 - 🧩 **Activate/deactivate UI components** declaratively with the `<Feature>` component.
-- 🔔 **Subscribe to SPACE pricing events** to keep your UI in sync.  
+- 🔔 **Subscribe to SPACE pricing events** to keep your UI in sync (limited at this stage).  
 
 :::warning important 
-This SDK is intended for research and experimentation. For production usage, see **[License & Disclaimer](#-license--disclaimer)**.
+This SDK is intended for research and experimentation and is not a finished product at this moment. For production usage, see **[License & Disclaimer](#-license--disclaimer)**.
 :::
 
 ---
@@ -30,107 +30,120 @@ This SDK is intended for research and experimentation. For production usage, see
 
 ## 📦 Installation
 
-Install with your package manager of choice:
+You can install the SDK using npm as a package manager
 
 ```bash
+# our current option
 npm install @npm_team/space-vue-client
-# or
-yarn add space-vue-client
-# or
-pnpm add space-vue-client
 ```
 
 **Peer dependencies:**
 
-- `Vue >= 18`
-- `Resto dependencias`
+- `Vue >= 2.5.0`
+- `@vue/composition-api >= 1.7" Only needed if you use a Vue version lower than 2.7.0
 
 ---
 
 ## ⚡ Quick Start
 
-The minimal setup to connect to SPACE, load a user’s Pricing Token, and render UI conditionally with `<Feature>`.
+This SDK supports 2 forms of usage that can be switched depending on the atribute "allowConnectionWithSpace":
+
 
 ### 1. Wrap your app with `SpaceProvider`
 
-```tsx
-//REVISAR CODIGO
-import Vue from 'Vue';
-import { createRoot } from 'Vue-dom/client';
-import { SpaceProvider } from 'space-Vue-client';
-import App from './App';
+```js
+import Vue from 'vue'
+import App from './App'
+import router from './router'
+import { SpaceProvider } from '@npm_team/space-vue-client'
 
-const config = {
-  url: 'http://localhost:5403', // Your SPACE instance URL
-  apiKey: 'YOUR_API_KEY',       // API key issued by SPACE
-  allowConnectionWithSpace: true,
-};
+Vue.config.productionTip = false
 
-createRoot(document.getElementById('root')!)
-  .render(
-    <SpaceProvider config={config}>
-      <App />
+// SPACE configuration
+const spaceConfig = {
+  url: 'http://localhost:5403/',
+  apiKey: '27a13d852ad3b63e0410507e062f66021b48cfb556f895adbc0dde0d96552127',
+  allowConnectionWithSpace: true
+}
+
+// eslint-disable-next-line no-new
+new Vue({
+  el: '#app',
+  router,
+  components: { App, SpaceProvider },
+  data () {
+    return {
+      spaceConfig 
+    }
+  },
+  template: `
+    <SpaceProvider :config="spaceConfig">
+      <App/>
     </SpaceProvider>
-  );
+  `
+})
+
 ```
 
 :::warning  
 Setting `allowConnectionWithSpace: false` disables all connections to SPACE.  
-This means you can still evaluate features from a token, but **event listeners (e.g., pricing_created, pricing_archived, etc.) as well as methods like `setUserId` and `generateUserPricingToken` will not work.**  
+You can still evaluate features from a token retrieved from backend, but methods like `setUserId` and `generateUserPricingToken` wont work.**  
 :::
 
 ### 2. Identify the user and load a Pricing Token
 
 ```tsx
-import { useEffect } from 'Vue';
-import { useSpaceClient } from 'space-Vue-client';
+mport { Feature, useSpaceClient } from '@npm_team/space-vue-client'
 
-export function App() {
-  const spaceClient = useSpaceClient();
+export default {
+  name: 'Navbar',
+  components: {
+    Feature
+  },
+  setup () {
+    const spaceClient = useSpaceClient()
+    return { spaceClient }
+  },
+  // Call the function setUserId where you need
+  async checkAuth () {
+    ....
+    this.loggedIn = true
+    this.updateBodyClass(true)
+    if (this.spaceClient) {
+      console.log('SPACE client is available in Navbar, setting user ID:', this.usuarioActual.id)
+      this.spaceClient.setUserId(this.usuarioActual.id.toString()).then(() => {
+        console.log('User ID set in SPACE client successfully')
+        }).catch(err => {
+          console.error('Error setting user ID in SPACE client:', err)
+        })
+    } else {
+      console.warn('Space client not available at the moment');
+    }
+  },
 
-  useEffect(() => {
-    spaceClient.setUserId('user-123')
-      .then(() => console.log("User's pricing token set"))
-      .catch(console.error);
-
-    // Listen for SPACE sync events
-    const onSync = () => console.log('Connected & synchronized with SPACE');
-    spaceClient.on('synchronized', onSync);
-
-    return () => spaceClient.off('synchronized', onSync);
-  }, [spaceClient]);
-
-  return <YourComponent />;
+  
 }
 ```
 
 ### 3. Gate UI with `<Feature>`
 
 ```tsx
-import { Feature, On, Default, Loading, ErrorFallback } from 'space-Vue-client';
+<script>
+  <Feature id="petclinic-visitCalendar" v-if="userTipo === 'prop_mascota'">
+    <template #on>
+      <router-link
+        v-if="loggedIn && userTipo === 'prop_mascota'"
+        to="/calendario-visitas"
+        class="sidebar-link"
+      >
+        Calendario de visitas
+      </router-link>
+    </template>
+  </Feature>
+</script>
 
-export function OnlineVisitsButton() {
-  return (
-    <Feature id="petclinic-visits">
-      <On>
-        {/* Rendered when feature is enabled */}
-        <button>Start online visit</button>
-      </On>
-      <Default>
-        {/* Rendered when feature is disabled */}
-        <button disabled>Upgrade to enable online visits</button>
-      </Default>
-      <Loading>
-        {/* Rendered while evaluating */}
-        <span>Checking your plan…</span>
-      </Loading>
-      <ErrorFallback>
-        {/* Rendered on error */}
-        <span>Could not verify your access permission to online visits.</span>
-      </ErrorFallback>
-    </Feature>
-  );
-}
+import { Feature, useSpaceClient } from '@npm_team/space-vue-client'
+
 ```
 
 ---
@@ -138,23 +151,21 @@ export function OnlineVisitsButton() {
 ### 🔄 Alternative: Token-only mode (no live connection)
 
 Set `allowConnectionWithSpace: false` to disable the WebSocket client.  
-You can then inject a Pricing Token from your backend:
+You can then inject a Pricing Token from your backend and then call tokenService.update() to use the token in the validations:
 
-```tsx
-import { useEffect } from 'Vue';
-import { usePricingToken } from 'space-Vue-client';
+```js
+import axios from 'axios'
+import { tokenService } from '@npm_team/space-vue-client'
 
-export function InjectTokenFromServer() {
-  const tokenService = usePricingToken();
+export const syncSpaceToken = async (router) => {
+  try {
+    const res = await axios.post(`/api/my-pricing-token`)
+    const newToken = res.data.token
+    tokenService.update(newToken)
 
-  useEffect(() => {
-    fetch('/api/my-pricing-token')
-      .then(res => res.text()) // token as string
-      .then(token => tokenService.updatePricingToken(token))
-      .catch(console.error);
-  }, [tokenService]);
-
-  return <YourComponent />;
+  } catch (error) {
+    console.error('An error ocurred:', error)
+  }
 }
 ```
 
@@ -195,10 +206,10 @@ export function InjectTokenFromServer() {
   Declarative feature gating.  
 
   - **Subcomponents:**  
-    - `<On>` — Rendered when feature evaluates to `true`.  
-    - `<Default>` — Rendered when feature evaluates to `false`.  
-    - `<Loading>` — Rendered while evaluating.  
-    - `<ErrorFallback>` — Rendered on errors (invalid id, expired token, etc).  
+    - `<on>` — Rendered when feature evaluates to `true`.  
+    - `<fallback>` — Rendered when feature evaluates to `false`.  
+    - `<loading>` — Rendered while evaluating.  
+    - `<errorFallback>` — Rendered on errors (invalid id, expired token, etc).  
 
 :::warning
 The `feature-id` is a string in the format `saasName-featureName`, where saasname is always lowercase.
@@ -231,21 +242,10 @@ For example, to reference the **pets feature from PetClinic**, the resulting fea
 
 **✅ Supported Events**
 
-- **`synchronized`** — Client is connected and synced with SPACE.  
-- **`pricing_created`** — A new pricing was added.  
-- **`pricing_activated`** — A pricing moved from archived → active.  
-- **`pricing_archived`** — A pricing moved from active → archived.  
-- **`service_disabled`** — A service was disabled.  
+The supported events and its use in the library is still being worked on
+
+- **`pricing_updated`** — The pricing token of an user has been updated
 - **`error`** — Connection or processing error.  
-
-All events (except `synchronized` and `error`) include the following object:  
-
-```typescript
-{
-  serviceName: string;       // REQUIRED: The name of the service that triggered the event
-  pricingVersion?: string;   // OPTIONAL: The version of the pricing involved
-}
-```
 
 ---
 
