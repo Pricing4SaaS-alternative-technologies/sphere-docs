@@ -1,0 +1,136 @@
+---
+title: "Python"
+custom_edit_url: null
+---
+
+# SPACE Client SDK for Python
+
+[![TestPyPI version](https://img.shields.io/badge/TestPyPI-v0.0.3-red.svg)](https://test.pypi.org/project/app-SpacePyCl/)
+
+A fully-typed **Python SDK** for interacting with [SPACE](../../introduction.mdx).  
+
+The client provides everything you need to:  
+
+- 🔐 Connect securely to a SPACE instance  
+- 📜 Manage contracts  
+- ✅ Evaluate feature access and usage limits  
+
+---
+
+## 📦 Installation
+
+```bash
+pip install -i https://test.pypi.org/simple/ app-SpacePyCl
+```
+
+## ✨ Features
+
+- Manage **user contracts**.
+- Evaluate **feature access compliance**.
+- Track and update **usage levels**.
+
+## ⚡ Quick Start
+
+### 1. Connect to SPACE
+
+```python
+class Config:
+    SQLALCHEMY_DATABASE_URI = "mysql+pymysql://root:root@localhost/petclinic_alternativo"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SECRET_KEY = 'YOUR_SECRET_KEY' #From the database
+    SPACE_API_KEY = 'YOUR_API_KEY'
+```
+
+### 2. Add a Contract
+
+```python
+contract = space_client.contracts.add_contract({
+  "userContact": {
+    "userId": "user-123",
+    "fistName": "user-firstName",
+    "lastName": "user-lastName",
+    "email": "user-email",
+    "username": "testUser"
+  },
+  "billingPeriod": {
+    "autoRenew": True,
+    "renewalDays": 30
+  },
+  "contractedServices": {
+    "PetClinic": "1.0.3"
+  },
+  "subscriptionPlans": {
+    "PetClinic": "SILVER"
+  },
+  "ubscriptionAddOns": {
+    "PetClinic": {
+      extraPetOwners: 1,
+    },
+  },
+})
+```
+
+### 3. Evaluate a Feature
+
+```python
+# Assuming you have a user with ID 'user-123' and
+# a feature with ID 'petclinic-registeredClinics'
+result = space_client.featureEvaluators.evaluate(user-123, "petclinic-registeredClinics")
+print(result.eval) # True/False
+```
+
+## 📚 API Overview
+
+### 🔑 Connection
+
+- `SpaceClient(url, api_key)` → Connects to the SPACE server and returns a `SpaceClient` instance.
+
+### 📜 Contracts
+
+- `space_client.contracts.add_contract(contract)` → Adds a new contract.
+- `space_client.contracts.update_contract_subscription(str(user_id), subscription)` → Updates a user's subscription.
+
+### 🎛️ Features
+
+- `space_client.featureEvaluators.evaluate(user_id, feature_id, expected_consumption=None)` → Evaluates a feature for a user.
+
+:::warning[Structure of feature_id]
+The `feature_id` parameter is a string in the format `saasname-featureName`, where saasname is always lowercase.
+For example, to reference the **pets feature from PetClinic**, the resulting feature_id would be: `petclinic-registeredClinics`.
+:::
+
+
+- `space_client.featureEvaluators.generate_user_pricing_token(str(user_id))` → Generate a [Pricing Token](../../introduction.mdx#-communication-strategy-overview) with all evaluated features.
+
+---
+
+## 🧑‍💻 Type Hints Support
+
+The SDK leverages **Python Type Hints** and ships with complete type definitions for:
+
+- Contracts
+- Features
+- Pricings
+
+This means **auto-complete** and **static analysis safety** when coding 🚀.
+
+## 🛠️ Tech Stack
+
+The project uses the following main tools and technologies:
+
+<div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center', marginTop: '1rem' }}>
+    ![Python](https://img.shields.io/badge/-Python-3776AB?logo=python&logoColor=white&style=for-the-badge)
+    ![ESLint](https://img.shields.io/badge/-ESLint-4B32C3?logo=eslint&logoColor=white&style=for-the-badge)
+    ![Pytest](https://img.shields.io/badge/-Pytest-0A9EDC?logo=pytest&logoColor=white&style=for-the-badge)
+    
+
+</div>
+
+## Disclaimer & License
+
+This project is licensed under the MIT License. See [LICENSE](https://github.com/Pricing4SaaS-alternative-technologies/space-python-client/blob/main/LICENSE) for details.
+
+:::warning
+This SDK is part of **ongoing research** in pricing-driven devops.
+It is still in an early stage and not intended for production use.
+:::
